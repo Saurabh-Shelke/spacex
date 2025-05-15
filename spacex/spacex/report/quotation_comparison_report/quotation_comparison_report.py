@@ -32,8 +32,8 @@ def get_columns(supplier_quotation_count):
     for idx in range(1, supplier_quotation_count + 1):
         columns.extend([
             {"label": _(f"Partner Name {idx}"), "fieldname": f"partner_name_{idx}", "fieldtype": "Data", "width": 150},
-            {"label": _(f"Quote Ref No. {idx}"), "fieldname": f"quote_ref_no_{idx}", "fieldtype": "Link", "options": "Supplier Quotation", "width": 150},
-            {"label": _(f"Dt. {idx}"), "fieldname": f"date_{idx}", "fieldtype": "Date", "width": 100},
+            {"label": _(f"Quote Ref No. {idx}"), "fieldname": f"quote_ref_no_{idx}", "fieldtype": "Link", "options": "Supplier Quotation", "width": 200},
+            {"label": _(f"Dt. {idx}"), "fieldname": f"date_{idx}", "fieldtype": "Date", "width": 130},
             {"label": _(f"Rate {idx}"), "fieldname": f"rate_{idx}", "fieldtype": "Currency", "width": 100},
             {"label": _(f"Amount {idx}"), "fieldname": f"amount_{idx}", "fieldtype": "Currency", "width": 120},
             {"label": _(f"Label {idx}"), "fieldname": f"label_{idx}", "fieldtype": "Data", "width": 80},
