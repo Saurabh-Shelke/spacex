@@ -10,6 +10,17 @@ logger = logging.getLogger(__name__)
 def execute(filters=None):
     try:
         data, supplier_quotation_count = get_data(filters or {})
+
+        # Always replace Qty with Quoted Qty 1 values
+        for row in data:
+            if row.get("description") != "TOTAL AMOUNT":
+                row["qty"] = row.get("quoted_qty_1", 0)
+
+        # Always update total row qty to sum of Quoted Qty 1
+        for row in data:
+            if row.get("description") == "TOTAL AMOUNT":
+                row["qty"] = sum(r.get("quoted_qty_1", 0) for r in data if r.get("description") != "TOTAL AMOUNT")
+
         columns = get_columns(supplier_quotation_count)
 
         if filters.get("rfq"):
@@ -20,18 +31,19 @@ def execute(filters=None):
         logger.error(f"Error executing report: {str(e)}")
         frappe.throw(_("An error occurred while generating the report: {0}").format(str(e)))
 
+
 def get_columns(supplier_quotation_count):
     columns = [
         {"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 150},
         {"label": _("Item Description"), "fieldname": "description", "fieldtype": "Data", "width": 200},
-        # {"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 80},
+        {"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 80},  # label remains "Qty"
         {"label": _("Units"), "fieldname": "uom", "fieldtype": "Data", "width": 80},
     ]
     
     for idx in range(1, supplier_quotation_count + 1):
         columns.extend([
             {"label": _(f"Partner Name {idx}"), "fieldname": f"partner_name_{idx}", "fieldtype": "Data", "width": 150},
-            {"label": _(f"Quoted Qty {idx}"), "fieldname": f"quoted_qty_{idx}", "fieldtype": "Float", "width": 100},
+            # {"label": _(f"Quoted Qty {idx}"), "fieldname": f"quoted_qty_{idx}", "fieldtype": "Float", "width": 100},
             {"label": _(f"Quote Ref No. {idx}"), "fieldname": f"quote_ref_no_{idx}", "fieldtype": "Link", "options": "Supplier Quotation", "width": 200},
             {"label": _(f"Dt. {idx}"), "fieldname": f"date_{idx}", "fieldtype": "Date", "width": 130},
             {"label": _(f"Rate {idx}"), "fieldname": f"rate_{idx}", "fieldtype": "Currency", "width": 100},
@@ -40,6 +52,7 @@ def get_columns(supplier_quotation_count):
         ])
     
     return columns
+
 
 def filter_zero_quotation_rows(data, supplier_quotation_count):
     filtered_data = []
@@ -57,19 +70,20 @@ def filter_zero_quotation_rows(data, supplier_quotation_count):
     total_row = {
         "item_code": "",
         "description": "TOTAL AMOUNT",
-        "qty": sum(row.get("qty", 0) for row in filtered_data),
+        "qty": sum(row.get("quoted_qty_1", 0) for row in filtered_data),
         "uom": ""
     }
     for idx in range(1, supplier_quotation_count + 1):
         total_row.update({
+            f"quoted_qty_{idx}": sum(flt(row.get(f"quoted_qty_{idx}", 0)) for row in filtered_data),
             f"rate_{idx}": sum(flt(row.get(f"rate_{idx}")) for row in filtered_data),
             f"amount_{idx}": sum(flt(row.get(f"amount_{idx}")) for row in filtered_data),
             f"label_{idx}": filtered_data[0].get(f"label_{idx}") if filtered_data else "",
-            f"quoted_qty_{idx}": sum(flt(row.get(f"quoted_qty_{idx}", 0)) for row in filtered_data)
         })
 
     filtered_data.append(total_row)
     return filtered_data
+
 
 def get_data(filters):
     data = []
@@ -202,35 +216,24 @@ def get_data(filters):
             })
         data.append(row)
 
-    # total_row = {
-    #     "item_code": "",
-    #     "description": "TOTAL AMOUNT",
-    #     "qty": total_qty,
-    #     "uom": ""
-    # }
-    # for idx, (quote_ref_no, s_data) in enumerate(sorted_supplier_quotations, 1):
-    #     total_row.update({
-    #         f"rate_{idx}": s_data["total_rate"] or 0,
-    #         f"amount_{idx}": s_data["total"] or 0,
-    #         f"label_{idx}": s_data["label"],
-    #     })
     total_row = {
-    "item_code": "",
-    "description": "TOTAL AMOUNT",
-    "qty": total_qty,
-    "uom": ""
+        "item_code": "",
+        "description": "TOTAL AMOUNT",
+        "qty": sum(row.get("quoted_qty_1", 0) for row in data),
+        "uom": ""
     }
     for idx, (quote_ref_no, s_data) in enumerate(sorted_supplier_quotations, 1):
         total_row.update({
-        f"quoted_qty_{idx}": sum(flt(row.get(f"quoted_qty_{idx}", 0)) for row in data),
-        f"rate_{idx}": s_data["total_rate"] or 0,
-        f"amount_{idx}": s_data["total"] or 0,
-        f"label_{idx}": s_data["label"],
-    })
+            f"quoted_qty_{idx}": sum(flt(row.get(f"quoted_qty_{idx}", 0)) for row in data),
+            f"rate_{idx}": s_data["total_rate"] or 0,
+            f"amount_{idx}": s_data["total"] or 0,
+            f"label_{idx}": s_data["label"],
+        })
 
     data.append(total_row)
 
     return data, supplier_quotation_count
+
 
 def get_conditions(filters):
     conditions = []
@@ -244,4 +247,3 @@ def get_conditions(filters):
         conditions.append("sq.supplier = %(supplier)s")
     
     return " AND " + " AND ".join(conditions) if conditions else ""
-
